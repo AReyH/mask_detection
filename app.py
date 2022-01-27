@@ -3,32 +3,36 @@ import uuid
 import numpy as np
 import io
 from PIL import Image
-# import tensorflow as tf
-# from tensorflow import keras
-# from tensorflow.keras.models import Sequential, load_model
-# from keras.models import load_model
-# from tensorflow.keras.preprocessing.image import ImageDataGenerator, img_to_array
+import tensorflow as tf
+from tensorflow import keras
+from tensorflow.keras.models import Sequential, load_model
+from tensorflow.keras.models import load_model
+from tensorflow.keras.preprocessing.image import ImageDataGenerator, img_to_array
 import matplotlib.pyplot as plt
 from flask import Flask,render_template,redirect,url_for,request
 import urllib3
-#from flask_fontawesome import FontAwesome
+from tensorflow.keras.preprocessing import image
+import os
+
 
 
 app = Flask(__name__)
-#fa = FontAwesome(app)
-#model = load_model('mask_detection_4.h5')
 
-ALLOWED_EXT = set(['jpg' , 'jpeg' , 'png' , 'jfif'])
+model = load_model('mask_detection_4.h5')
+
+ALLOWED_EXT = set(['jpg' , 'jpeg' , 'png' , 'jfif', 'PNG'])
 def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1] in ALLOWED_EXT
 
-def load_image(img_path, show=False):
+def predict(img_path, show=False):
 
     img = image.load_img(img_path, target_size=(224, 224))
     img_tensor = image.img_to_array(img)                    # (height, width, channels)
     img_tensor = np.expand_dims(img_tensor, axis=0)         # (1, height, width, channels), add a dimension because the model expects this shape: (batch_size, height, width, channels)
     img_tensor /= 255.                                      # imshow expects values in the range [0, 1]
+
+    prediction = model.predict(img_tensor)
 
     if show:
         plt.imshow(img_tensor[0])                           
@@ -36,79 +40,81 @@ def load_image(img_path, show=False):
         plt.show()
 
     
-    return img_tensor
+    return prediction
 
 
 @app.route('/')
 def home():
     return render_template('index.html')
 
-# @app.route('/success' , methods = ['GET' , 'POST'])
-# def success():
-#     error = ''
-#     target_img = os.path.join(os.getcwd() , 'static/images')
-#     if request.method == 'POST':
-#         if(request.form):
-#             link = request.form.get('link')
-#             try :
-#                 resource = urllib3.request.urlopen(link)
-#                 unique_filename = str(uuid.uuid4())
-#                 filename = unique_filename+".jpg"
-#                 img_path = os.path.join(target_img , filename)
-#                 output = open(img_path , "wb")
-#                 output.write(resource.read())
-#                 output.close()
-#                 img = filename
+@app.route('/aboutme')
+def aboutme():
+    return render_template('aboutme.html')
 
-#                 class_result , prob_result = predict(img_path , model)
+@app.route('/aboutmodel')
+def aboutmodel():
+    return render_template('aboutmodel.html')
 
-#                 predictions = {
-#                       "class1":class_result[0],
-#                         "class2":class_result[1],
-#                         "class3":class_result[2],
-#                         "prob1": prob_result[0],
-#                         "prob2": prob_result[1],
-#                         "prob3": prob_result[2],
-#                 }
+@app.route('/test')
+def test():
+    return render_template('test.html')
 
-#             except Exception as e : 
-#                 print(str(e))
-#                 error = 'This image from this site is not accesible or inappropriate input'
+@app.route('/success' , methods = ['GET' , 'POST'])
+def success():
+    error = ''
+    target_img = os.path.join(os.getcwd() , 'static/images')
+    if request.method == 'POST':
+        if(request.form):
+            link = request.form.get('link')
+            try :
+                resource = urllib3.request.urlopen(link)
+                unique_filename = str(uuid.uuid4())
+                filename = unique_filename+".jpg"
+                img_path = os.path.join(target_img , filename)
+                output = open(img_path , "wb")
+                output.write(resource.read())
+                output.close()
+                img = filename
 
-#             if(len(error) == 0):
-#                 return  render_template('success.html' , img  = img , predictions = predictions)
-#             else:
-#                 return render_template('index.html' , error = error) 
+                predictions = predict(img_path)
+                
+                predictions = {
+                       'Prediction': round(predictions[0][0])
+                }
+
+            except Exception as e : 
+                print(str(e))
+                error = 'This image from this site is not accesible or inappropriate input'
+
+            if(len(error) == 0):
+                return  render_template('success.html' , img  = img , predictions = predictions)
+            else:
+                return render_template('index.html' , error = error) 
 
             
-#         elif (request.files):
-#             file = request.files['file']
-#             if file and allowed_file(file.filename):
-#                 file.save(os.path.join(target_img , file.filename))
-#                 img_path = os.path.join(target_img , file.filename)
-#                 img = file.filename
+        elif (request.files):
+            file = request.files['file']
+            if file and allowed_file(file.filename):
+                file.save(os.path.join(target_img , file.filename))
+                img_path = os.path.join(target_img , file.filename)
+                img = file.filename
 
-#                 class_result , prob_result = predict(img_path , model)
+                predictions = predict(img_path)
+                
+                predictions = {
+                       'Prediction': round(predictions[0][0])
+                }
 
-#                 predictions = {
-#                       "class1":class_result[0],
-#                         "class2":class_result[1],
-#                         "class3":class_result[2],
-#                         "prob1": prob_result[0],
-#                         "prob2": prob_result[1],
-#                         "prob3": prob_result[2],
-#                 }
+            else:
+                error = "Please upload images of jpg , jpeg and png extension only"
 
-#             else:
-#                 error = "Please upload images of jpg , jpeg and png extension only"
+            if(len(error) == 0):
+                return  render_template('success.html' , img  = img , predictions = predictions)
+            else:
+                return render_template('index.html' , error = error)
 
-#             if(len(error) == 0):
-#                 return  render_template('success.html' , img  = img , predictions = predictions)
-#             else:
-#                 return render_template('index.html' , error = error)
-
-#     else:
-#         return render_template('index.html')
+    else:
+        return render_template('index.html')
 
 if __name__ == '__main__':
     app.run(debug=True)
